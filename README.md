@@ -1,38 +1,38 @@
-# GymOps 🏋️
+# lazygym (GymOps) 🏋️
 
-> A terminal-based workout tracker I built because I was tired of tracking my sets in my notes app.
+> A terminal-based workout tracker I built for myself because I was tired of tracking my sets in my notes app.
 
-GymOps is a CLI tool that lives in your terminal. You log your workouts, it tracks your personal records, tells you if you're actually getting stronger, and generates a weekly summary of what you've been doing. That's it.
+lazygym (GymOps) is a CLI tool that lives in your terminal. You set your training split, pick today's day, and log your sets. It tracks your personal records, tells you if you're actually getting stronger, and generates a weekly summary of what you've been doing. That's it.
 
-Inspired by [lazygit](https://github.com/jesseduffield/lazygit) — the idea that a good terminal tool should get out of your way and just work.
+Inspired by [lazygit](https://github.com/jesseduffield/lazygit) — the idea that a good terminal tool should get out of your way, run locally, and just work.
 
 ---
 
-## What it does
+## Features
 
-- Logs workouts (exercise, sets, reps, weight) to a local SQLite database at `~/.gymops/gymops.db`
-- Calculates your estimated 1-rep max using the Epley formula after every set
-- Tracks personal records per exercise and alerts you when you break one
-- Comes pre-loaded with Jeff Nippard's ULPPL, PPL, and Upper/Lower routines
-- Shows progressive overload stats — did you actually get stronger since last session?
-- Generates a weekly Markdown digest of your training
-- Eventually: a full TUI interface like lazygit, so you can browse your history visually
+- **100% Local**: Your data never leaves your machine. Saved in a SQLite database at `~/.gymops/gymops.db`.
+- **Pre-loaded Splits**: Comes pre-seeded with Jeff Nippard's classic splits (4-Day Upper/Lower, 5-Day ULPPL, 6-Day PPL) so you can start logging immediately.
+- **Estimated 1RM**: Calculates estimated 1-rep max using the Epley formula after every set.
+- **Progressive Overload Stats**: Compares today's performance against your last session to tell you if you're getting stronger.
+- **PR Tracking**: Auto-updates your personal records and marks them when broken.
+- **Weekly Digests**: Generates markdown summaries of your weekly training volume and best lifts.
+- **TUI Interface (Coming Soon)**: A full lazygit-style terminal UI to log sets and view PRs visually.
 
 ---
 
 ## Quickstart
 
 ```bash
-# Clone and set up
+# Clone the repository
 git clone https://github.com/Pierorivera1/gymops.git
 cd gymops
 
-# Create virtual environment and install
+# Create virtual environment and install dependencies
 uv venv
 source .venv/bin/activate
 uv pip install -e .
 
-# You're ready
+# Confirm it works
 gymops --help
 ```
 
@@ -43,53 +43,56 @@ gymops --help
 ## Usage
 
 ```bash
-# Pick a routine to follow
-gymops list-routines
-gymops select-routine "ULPPL — Push (Day 1)"
+# 1. List all available training programs
+gymops list-programs
 
-# Log a session
-gymops log --exercise "Barbell Bench Press" --sets 4 --reps 8 --weight 80
+# 2. Select the active program you follow (e.g. Upper/Lower)
+gymops select-program "Upper/Lower (4-Day)"
 
-# Did you get stronger?
+# 3. Set today's training day (do this at the start of your workout)
+gymops set-day "Upper A (Strength)"
+
+# 4. Log your sets as you perform them
+gymops log --exercise "Barbell Bench Press" --sets 3 --reps 8 --weight 80
+
+# 5. Check if you achieved progressive overload compared to last session
 gymops stats --exercise "Barbell Bench Press"
 
-# Check your PRs
+# 6. View your personal records
 gymops prs
 
-# See your full history for an exercise
+# 7. View exercise history
 gymops history --exercise "Barbell Bench Press"
 
-# Add an exercise that isn't in the default catalog
-gymops add-exercise --name "Dumbbell Curl" --muscle-group "Biceps" --type isolation
+# 8. Add an exercise to the catalog
+gymops add-exercise --name "Dumbbell Lateral Raise" --muscle-group "Shoulders" --type isolation
 
-# Build your own routine
-gymops add-routine
+# 9. Create a custom training program with custom days and exercises
+gymops add-program
 
-# Generate a weekly summary
+# 10. Generate a weekly Markdown digest of your logged workouts
 gymops digest
 ```
 
 ---
 
-## How the database works
+## Database
 
-Your data never leaves your machine. GymOps stores everything in a single SQLite file at:
-
+All logged workouts, PRs, and custom splits are kept in a single SQLite database on your host machine:
 ```
 ~/.gymops/gymops.db
 ```
-
-On first run it auto-creates the database and seeds it with Jeff Nippard's default routines so you can start logging immediately.
+This folder is created automatically on first run.
 
 ---
 
-## Roadmap
+## Development & Tests
 
-- [x] CLI with all core commands
-- [x] SQLite persistence with PR tracking
-- [x] Jeff Nippard routine autoseed
-- [x] Epley 1RM calculation and progressive overload stats
-- [x] Weekly digest generator
-- [ ] Full test suite
-- [ ] Docker support (run it anywhere without installing Python)
-- [ ] TUI interface — lazygit-style, browse history, log sets, view PRs visually
+Run unit and integration tests using pytest:
+```bash
+# Install test requirements
+uv pip install pytest
+
+# Run tests
+uv run pytest
+```

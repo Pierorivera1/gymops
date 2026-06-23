@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "gymops"
 version = "0.1.0"
-description = "DevOps portfolio project: CLI/TUI Workout Tracker"
+description = "lazygym — a terminal-based workout tracker for lazy lifters"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

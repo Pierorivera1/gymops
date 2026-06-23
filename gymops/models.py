@@ -7,6 +7,7 @@ structured data returned from the database layer.
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 
 @dataclass
@@ -31,6 +32,7 @@ class Workout:
     weight: float
     epley_1rm: float
     timestamp: datetime
+    day_id: Optional[int] = None  # Which training day this log belongs to
 
 
 @dataclass
@@ -46,8 +48,14 @@ class PR:
 
 
 @dataclass
-class Routine:
-    """Represents a workout routine."""
+class Program:
+    """
+    Represents a full training program (e.g. 'Upper/Lower', 'PPL').
+
+    A program is the complete split you follow. It contains multiple
+    training days (e.g. Upper A, Lower A, Upper B, Lower B).
+    You set this once and only change it when switching programs.
+    """
 
     id: int
     name: str
@@ -55,11 +63,26 @@ class Routine:
 
 
 @dataclass
-class RoutineExercise:
-    """Represents a single exercise entry within a routine."""
+class ProgramDay:
+    """
+    Represents one training day within a program (e.g. 'Upper A').
+
+    You select the active day at the start of each gym session.
+    It guides which exercises to log and their target sets/reps.
+    """
 
     id: int
-    routine_id: int
+    program_id: int
+    name: str
+    day_order: int
+
+
+@dataclass
+class DayExercise:
+    """Represents a single exercise entry within a training day."""
+
+    id: int
+    day_id: int
     exercise_id: int
     exercise_name: str
     target_sets: int

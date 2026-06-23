@@ -7,9 +7,10 @@ Rich is used for styled terminal output.
 Commands:
     log            — Log a workout set
     add-exercise   — Register a new exercise
-    add-routine    — Interactive wizard to create a routine
-    list-routines  — Show all routines
-    select-routine — Set the active routine
+    add-program    — Interactive wizard to create a training program
+    list-programs  — Show all training programs and days
+    select-program — Set the active training program
+    set-day        — Set today's training day within the active program
     stats          — Progressive overload stats for an exercise
     history        — View workout history for an exercise
     prs            — Show all personal records
@@ -71,7 +72,7 @@ def log(
 
     try:
         workout = db.add_workout(exercise, sets, reps, weight)
-        active = db.get_active_routine()
+        active = db.get_active_state()
 
         # Build the output panel
         content = (
@@ -87,19 +88,20 @@ def log(
             Panel(content, title="[bold]🏋️  Workout Logged Successfully![/]", border_style="cyan")
         )
 
-        # Show routine guidelines if applicable
-        if active:
-            routine_exs = db.get_routine_exercises(active.id)
-            for rex in routine_exs:
-                if rex.exercise_name.lower() == workout.exercise_name.lower():
+        # Show program day guidelines if applicable
+        if active and active.get("day"):
+            active_day = active["day"]
+            day_exs = db.get_day_exercises(active_day.id)
+            for dex in day_exs:
+                if dex.exercise_name.lower() == workout.exercise_name.lower():
                     ex = db.get_exercise_by_name(workout.exercise_name)
                     rep_range = "6-10 reps" if ex and ex.type == "compound" else "8-12 reps"
                     console.print(
                         f"\n[dim]Routine Guidelines for {workout.exercise_name}:[/dim]"
                     )
                     console.print(
-                        f"  Target Reps for [cyan]{active.name}[/]: "
-                        f"[cyan]{rex.target_reps} reps[/] "
+                        f"  Target Reps for [cyan]{active_day.name}[/]: "
+                        f"[cyan]{dex.target_reps} reps[/] "
                         f"(Suggested {ex.type.capitalize()} range: [dim]{rep_range}[/])"
                     )
                     break
@@ -148,61 +150,76 @@ def add_exercise(
 
 
 # ---------------------------------------------------------------------------
-# gymops add-routine
+# gymops add-program
 # ---------------------------------------------------------------------------
 
-@app.command(name="add-routine")
-def add_routine() -> None:
-    """Interactive wizard to create a custom workout routine."""
+@app.command(name="add-program")
+def add_program() -> None:
+    """Interactive wizard to create a custom training program."""
     from gymops import db
 
-    console.print("[cyan]🏋️  GymOps Routine Creation Wizard[/]\n")
+    console.print("[cyan]🏋️  GymOps Program Creation Wizard[/]\n")
 
-    # Routine name
-    name = typer.prompt("Enter routine name")
+    # Program name
+    name = typer.prompt("Enter program name")
     with db.get_connection() as conn:
         exists = conn.execute(
-            "SELECT id FROM routines WHERE LOWER(name) = LOWER(?)", (name,)
+            "SELECT id FROM programs WHERE LOWER(name) = LOWER(?)", (name,)
         ).fetchone()
     if exists:
-        console.print(f"[bright_red]Error:[/] Routine '{name}' already exists.")
+        console.print(f"[bright_red]Error:[/] Program '{name}' already exists.")
         raise typer.Exit(code=1)
 
-    exercises: list[tuple[int, int, int]] = []
-    ex_num = 1
+    days: list[tuple[str, list[tuple[int, int, int]]]] = []
+    day_num = 1
 
     while True:
-        console.print(f"\nAdding Exercise [bold]#{ex_num}[/]:")
-        ex_name = typer.prompt("Enter exercise name")
-        exercise = db.get_exercise_by_name(ex_name)
-        if not exercise:
+        console.print(f"\n[bold]Defining Day #{day_num}[/]:")
+        day_name = typer.prompt(f"Enter name for training day #{day_num} (e.g. Upper A)")
+
+        exercises: list[tuple[int, int, int]] = []
+        ex_num = 1
+
+        while True:
+            console.print(f"\n  Adding Exercise #{ex_num} to '{day_name}':")
+            ex_name = typer.prompt("  Enter exercise name")
+            exercise = db.get_exercise_by_name(ex_name)
+            if not exercise:
+                console.print(
+                    f"[bright_red]    ✗ '{ex_name}' not found.[/] "
+                    "Register it first with: [cyan]gymops add-exercise[/]"
+                )
+                continue
+
+            rep_range = "6-10" if exercise.type == "compound" else "8-12"
             console.print(
-                f"[bright_red]  ✗ '{ex_name}' not found.[/] "
-                "Register it first with: [cyan]gymops add-exercise[/]"
+                f"    [dim]-> {exercise.name} registered as "
+                f"{exercise.type.capitalize()} (Suggested reps: {rep_range})[/]"
             )
-            continue
 
-        rep_range = "6-10" if exercise.type == "compound" else "8-12"
-        console.print(
-            f"  [dim]-> {exercise.name} registered as "
-            f"{exercise.type.capitalize()} (Suggested reps: {rep_range})[/]"
-        )
+            target_sets = typer.prompt("    Enter target sets", type=int)
+            target_reps = typer.prompt(f"    Enter target reps (Suggested: {rep_range})", type=int)
+            exercises.append((exercise.id, target_sets, target_reps))
+            console.print("  [cyan]Exercise added![/]")
 
-        target_sets = typer.prompt("Enter target sets", type=int)
-        target_reps = typer.prompt(f"Enter target reps (Suggested: {rep_range})", type=int)
-        exercises.append((exercise.id, target_sets, target_reps))
-        console.print("[cyan]Exercise added![/]")
+            another_ex = typer.confirm("  Add another exercise to this day?", default=True)
+            if not another_ex:
+                break
+            ex_num += 1
 
-        another = typer.confirm("Add another exercise?", default=True)
-        if not another:
+        days.append((day_name, exercises))
+        console.print(f"[cyan]Day '{day_name}' added with {len(exercises)} exercises![/]")
+
+        another_day = typer.confirm("Add another training day to this program?", default=True)
+        if not another_day:
             break
-        ex_num += 1
+        day_num += 1
 
     try:
-        db.add_routine(name, exercises)
+        db.add_program(name, days)
         console.print(
-            f"\n[bold spring_green1]Success:[/] Routine '[bold]{name}[/]' "
-            f"saved with {len(exercises)} exercises. [bold spring_green1]✓[/]"
+            f"\n[bold spring_green1]Success:[/] Program '[bold]{name}[/]' "
+            f"saved with {len(days)} days. [bold spring_green1]✓[/]"
         )
     except ValueError as e:
         console.print(f"[bright_red]Error:[/] {e}")
@@ -210,59 +227,111 @@ def add_routine() -> None:
 
 
 # ---------------------------------------------------------------------------
-# gymops list-routines
+# gymops list-programs
 # ---------------------------------------------------------------------------
 
-@app.command(name="list-routines")
-def list_routines() -> None:
-    """List all available workout routines."""
+@app.command(name="list-programs")
+def list_programs() -> None:
+    """List all available training programs and days."""
     from gymops import db
     from rich.table import Table
     import rich.box as box
 
-    routines = db.get_all_routines()
-    active = db.get_active_routine()
+    programs = db.get_all_programs()
+    active = db.get_active_state()
 
     table = Table(box=box.ROUNDED, border_style="cyan", show_lines=True)
     table.add_column("Status", style="bold", width=12)
-    table.add_column("Name", style="white")
+    table.add_column("Program", style="white")
     table.add_column("Created By", style="dim")
-    table.add_column("Exercises", justify="right")
+    table.add_column("Days", justify="right")
 
-    for r in routines:
-        exs = db.get_routine_exercises(r.id)
-        status = "[bold spring_green1]✓ ACTIVE[/]" if (active and active.id == r.id) else ""
-        table.add_row(status, r.name, r.created_by.capitalize(), str(len(exs)))
+    active_program_id = active["program_id"] if active else None
+    active_day_id = active["day_id"] if active else None
 
-    console.print("\n[cyan]📋 Available Workout Routines[/]\n")
+    for p in programs:
+        p_days = db.get_program_days(p.id)
+        status = "[bold spring_green1]✓ ACTIVE[/]" if (active_program_id == p.id) else ""
+        table.add_row(status, p.name, p.created_by.capitalize(), str(len(p_days)))
+
+    console.print("\n[cyan]📋 Available Training Programs[/]\n")
     console.print(table)
 
+    if active and active.get("program"):
+        active_prog = active["program"]
+        console.print(f"\n[cyan]{active_prog.name} — Training Days:[/]")
+        p_days = db.get_program_days(active_prog.id)
+        for idx, d in enumerate(p_days, start=1):
+            d_exs = db.get_day_exercises(d.id)
+            ex_count = len(d_exs)
+            suffix = " [bold spring_green1]← today[/]" if (active_day_id == d.id) else ""
+            console.print(f"  {idx}. {d.name} — {ex_count} exercises{suffix}")
+
 
 # ---------------------------------------------------------------------------
-# gymops select-routine
+# gymops select-program
 # ---------------------------------------------------------------------------
 
-@app.command(name="select-routine")
-def select_routine(
-    routine_name: str = typer.Argument(..., help="Name of the routine to activate."),
+@app.command(name="select-program")
+def select_program(
+    program_name: str = typer.Argument(..., help="Name of the program to activate."),
 ) -> None:
-    """Set the active workout routine."""
+    """Set the active training program."""
     from gymops import db
 
-    with db.get_connection() as conn:
-        row = conn.execute(
-            "SELECT id FROM routines WHERE LOWER(name) = LOWER(?)", (routine_name,)
-        ).fetchone()
+    programs = db.get_all_programs()
+    target_program = None
+    for p in programs:
+        if p.name.lower() == program_name.lower():
+            target_program = p
+            break
 
-    if not row:
-        console.print(f"[bright_red]Error:[/] Routine '{routine_name}' not found.")
+    if not target_program:
+        console.print(f"[bright_red]Error:[/] Program '{program_name}' not found.")
         raise typer.Exit(code=1)
 
-    db.set_active_routine(row["id"])
+    db.set_active_program(target_program.id)
     console.print(
-        f"Routine '[cyan]{routine_name}[/]' is now active! [bold spring_green1]✓[/]"
+        f"Program '[cyan]{target_program.name}[/]' is now active! [bold spring_green1]✓[/]"
     )
-    console.print("[dim]Future logs will be associated with this routine.[/dim]")
+    console.print("[dim]Use 'gymops set-day' to choose today's training day.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# gymops set-day
+# ---------------------------------------------------------------------------
+
+@app.command(name="set-day")
+def set_day(
+    day_name: str = typer.Argument(..., help="Name of the training day to activate."),
+) -> None:
+    """Set today's training day within the active program."""
+    from gymops import db
+
+    active = db.get_active_state()
+    if not active or not active.get("program_id"):
+        console.print(
+            "[bright_red]Error:[/] No active program. Set one first with: [cyan]gymops select-program[/]"
+        )
+        raise typer.Exit(code=1)
+
+    program_id = active["program_id"]
+    p_days = db.get_program_days(program_id)
+    target_day = None
+    for d in p_days:
+        if d.name.lower() == day_name.lower():
+            target_day = d
+            break
+
+    if not target_day:
+        console.print(f"[bright_red]Error:[/] Day '{day_name}' not found in the active program.")
+        raise typer.Exit(code=1)
+
+    db.set_active_day(target_day.id)
+    console.print(
+        f"Training day set to '[cyan]{target_day.name}[/]' [bold spring_green1]✓[/]"
+    )
+    console.print("[dim]Your logs today will be guided by this day's targets.[/dim]")
 
 
 # ---------------------------------------------------------------------------
